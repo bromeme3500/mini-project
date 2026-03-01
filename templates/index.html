@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="AI-powered crowd detection using dual YOLO + CNN models. Upload a video to count people in real-time.">
+    <title>CrowdSense — AI Crowd Detection</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <!-- Animated background particles -->
+    <div class="bg-effects">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+        <div class="bg-grid"></div>
+    </div>
+
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="14" r="6" stroke="currentColor" stroke-width="2" />
+                        <path d="M8 34c0-6.627 5.373-12 12-12s12 5.373 12 12" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
+                        <circle cx="10" cy="16" r="4" stroke="currentColor" stroke-width="1.5" opacity="0.5" />
+                        <circle cx="30" cy="16" r="4" stroke="currentColor" stroke-width="1.5" opacity="0.5" />
+                    </svg>
+                </div>
+                <h1>CrowdSense</h1>
+            </div>
+            <p class="subtitle">AI-Powered Crowd Detection & Counting</p>
+            <div class="header-badges">
+                <span class="badge badge-green">
+                    <span class="badge-dot"></span> YOLOv8
+                </span>
+                <span class="badge badge-orange">
+                    <span class="badge-dot"></span> CSRNet
+                </span>
+                <span class="badge badge-purple">
+                    <span class="badge-dot"></span> Dual Model
+                </span>
+            </div>
+        </header>
+
+        <!-- Upload Section -->
+        <section id="upload-section" class="section upload-section">
+            <div class="upload-zone" id="dropZone">
+                <div class="upload-ring">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M32 44V20M32 20L22 30M32 20L42 30" stroke="currentColor" stroke-width="2.5"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M12 38v8a6 6 0 006 6h28a6 6 0 006-6v-8" stroke="currentColor" stroke-width="2.5"
+                                stroke-linecap="round" />
+                        </svg>
+                    </div>
+                </div>
+                <h2>Drop your video here</h2>
+                <p>or click to browse files</p>
+                <p class="upload-hint">Supports MP4, AVI, MOV, MKV, WebM &bull; Max 500MB</p>
+                <input type="file" id="videoInput" accept="video/*" hidden>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="settings-panel">
+                <div class="setting-item glass-card">
+                    <div class="setting-header">
+                        <div class="setting-icon">⚙️</div>
+                        <label for="thresholdSlider">
+                            <span class="setting-label">Visualization Threshold</span>
+                            <span class="setting-value" id="thresholdValue">20</span>
+                        </label>
+                    </div>
+                    <input type="range" id="thresholdSlider" min="5" max="100" value="20" step="1">
+                    <p class="setting-desc">Controls when to show heatmap vs bounding boxes. Both models always run.</p>
+                </div>
+                <div class="setting-item glass-card">
+                    <div class="setting-header">
+                        <div class="setting-icon">🎞️</div>
+                        <label for="skipSlider">
+                            <span class="setting-label">Frame Skip</span>
+                            <span class="setting-value" id="skipValue">2</span>
+                        </label>
+                    </div>
+                    <input type="range" id="skipSlider" min="1" max="10" value="2" step="1">
+                    <p class="setting-desc">Process every Nth frame (higher = faster, less smooth)</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Processing Section (hidden initially) -->
+        <section id="processing-section" class="section processing-section hidden">
+            <!-- Main count display -->
+            <div class="hero-count glass-card">
+                <div class="hero-count-inner">
+                    <span class="hero-label">CROWD COUNT</span>
+                    <span class="hero-number" id="avgCount">0</span>
+                    <span class="hero-sub">10-frame rolling average</span>
+                </div>
+                <div class="hero-models">
+                    <div class="hero-model yolo-model">
+                        <span class="hero-model-label">YOLO</span>
+                        <span class="hero-model-count" id="yoloCount">0</span>
+                    </div>
+                    <div class="hero-model-vs">vs</div>
+                    <div class="hero-model cnn-model">
+                        <span class="hero-model-label">CNN</span>
+                        <span class="hero-model-count" id="cnnCount">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compact stats row -->
+            <div class="stats-row">
+                <div class="stat-pill">
+                    <span class="stat-pill-label">Frame</span>
+                    <span class="stat-pill-value" id="frameCount">0</span>
+                </div>
+                <div class="stat-pill accent">
+                    <span class="stat-pill-label">Model</span>
+                    <span class="stat-pill-value model-badge" id="modelBadge">—</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-pill-label">Progress</span>
+                    <span class="stat-pill-value" id="progressPercent">0%</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-pill-label" id="frameInfo">Frame 0 / 0</span>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-glow"></div>
+                </div>
+            </div>
+
+            <!-- Video Canvas -->
+            <div class="canvas-container">
+                <canvas id="videoCanvas"></canvas>
+                <div class="canvas-overlay" id="canvasOverlay">
+                    <div class="spinner-container">
+                        <div class="spinner-ring"></div>
+                        <div class="spinner-dot"></div>
+                    </div>
+                    <p>Analyzing video frames...</p>
+                    <span class="overlay-hint" id="modelDesc">Running YOLO + CNN on each frame</span>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <button class="btn btn-glass" id="stopBtn">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                        <rect x="6" y="6" width="12" height="12" rx="2" />
+                    </svg>
+                    Stop
+                </button>
+                <button class="btn btn-primary" id="newVideoBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    New Video
+                </button>
+            </div>
+        </section>
+
+        <!-- How It Works -->
+        <section class="section info-section">
+            <h2>How It Works</h2>
+            <div class="info-grid">
+                <div class="info-card glass-card">
+                    <div class="info-step">1</div>
+                    <h3>Upload Video</h3>
+                    <p>Drag & drop or browse for crowd footage in any common video format.</p>
+                </div>
+                <div class="info-card glass-card">
+                    <div class="info-step">2</div>
+                    <h3>Dual AI Analysis</h3>
+                    <p>Both <strong>YOLO</strong> and <strong>CNN</strong> run on every frame. The higher count wins —
+                        no crowd goes undetected.</p>
+                </div>
+                <div class="info-card glass-card">
+                    <div class="info-step">3</div>
+                    <h3>Smooth Results</h3>
+                    <p>A <strong>weighted rolling average</strong> across 10 frames delivers stable, accurate crowd
+                        counts.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>CrowdSense &mdash; Built with YOLOv8 & CSRNet</p>
+        </footer>
+    </div>
+
+    <script src="/static/main.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,23 @@
+# CrowdSense — AI Crowd Detection
+
+# Dependencies
+__pycache__/
+*.pyc
+*.pyo
+
+# Uploads (user videos)
+uploads/
+
+# Model weights (large files, download separately)
+weights/*.pth
+weights/*.pth.tar
+
+# YOLO weights
+yolov8n.pt
+yolov8n.pt.bak
+
+# System
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
