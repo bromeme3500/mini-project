@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description"
-        content="AI-powered crowd detection using dual YOLO + CNN models. Upload a video to count people in real-time.">
+        content="AI-powered crowd detection using dual YOLO + CNN models. Upload a video or use DroidCam live feed to count people in real-time.">
     <title>CrowdSense — AI Crowd Detection</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,6 +24,14 @@
         <div class="bg-grid"></div>
     </div>
 
+    <!-- Alert Banner (hidden by default) -->
+    <div id="alertBanner" class="alert-banner hidden" role="alert" aria-live="assertive">
+        <span class="alert-icon">🚨</span>
+        <span class="alert-text">CROWD LIMIT EXCEEDED!</span>
+        <span id="alertCountDisplay" class="alert-count"></span>
+        <button id="silenceBtn" class="alert-silence-btn" title="Silence alert">🔇</button>
+    </div>
+
     <div class="app">
         <!-- Header -->
         <header class="header">
@@ -39,7 +47,7 @@
                 </div>
                 <h1>CrowdSense</h1>
             </div>
-            <p class="subtitle">AI-Powered Crowd Detection & Counting</p>
+            <p class="subtitle">AI-Powered Crowd Detection &amp; Counting</p>
             <div class="header-badges">
                 <span class="badge badge-green">
                     <span class="badge-dot"></span> YOLOv8
@@ -52,6 +60,24 @@
                 </span>
             </div>
         </header>
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn active" id="tabUpload" onclick="switchTab('upload')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                </svg>
+                Upload Video
+            </button>
+            <button class="tab-btn" id="tabLive" onclick="switchTab('live')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07" />
+                    <path d="M4.93 4.93a10 10 0 000 14.14M8.46 8.46a5 5 0 000 7.07" />
+                </svg>
+                📱 Live Camera
+            </button>
+        </div>
 
         <!-- Upload Section -->
         <section id="upload-section" class="section upload-section">
@@ -96,11 +122,91 @@
                     <input type="range" id="skipSlider" min="1" max="10" value="2" step="1">
                     <p class="setting-desc">Process every Nth frame (higher = faster, less smooth)</p>
                 </div>
+                <div class="setting-item glass-card" style="grid-column: 1 / -1;">
+                    <div class="setting-header">
+                        <div class="setting-icon">🔔</div>
+                        <label for="uploadAlertLimitSlider">
+                            <span class="setting-label">Crowd Alert Limit</span>
+                            <span class="setting-value" id="uploadAlertLimitVal" style="color:var(--accent)">10</span>
+                        </label>
+                    </div>
+                    <input type="range" id="uploadAlertLimitSlider" min="1" max="100" value="10" step="1">
+                    <p class="setting-desc">Buzzer + red alert fires when rolling avg ≥ this value</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Camera Section -->
+        <section id="live-section" class="section live-section hidden">
+            <div class="live-panel glass-card">
+                <div class="live-panel-header">
+                    <span class="live-dot-indicator" id="liveDotIndicator"></span>
+                    <h2>Live DroidCam Feed</h2>
+                </div>
+                <p class="live-desc">Connect your Android phone via USB, open the <strong>DroidCam</strong> app and
+                    desktop client, then click <strong>Start Live</strong>.</p>
+
+                <div class="live-fields">
+                    <div class="live-field-group">
+                        <label for="deviceIndex" class="live-label">USB Device Index</label>
+                        <input type="number" id="deviceIndex" class="live-input" value="0" min="0" max="10"
+                            placeholder="0">
+                        <span class="live-field-hint">Try 0, 1, or 2 if you have multiple cameras</span>
+                    </div>
+                    <div class="live-field-group">
+                        <label for="droidcamIp" class="live-label">Wi-Fi IP (optional)</label>
+                        <input type="text" id="droidcamIp" class="live-input" placeholder="192.168.x.x" maxlength="15">
+                        <span class="live-field-hint">If set, overrides USB and uses MJPEG over Wi-Fi</span>
+                    </div>
+                    <div class="live-field-group">
+                        <label for="alertLimitSlider" class="live-label">
+                            🔔 Crowd Alert Limit &nbsp;
+                            <strong id="alertLimitVal" style="color:var(--accent)">10</strong> people
+                        </label>
+                        <input type="range" id="alertLimitSlider" min="1" max="100" value="10" step="1">
+                        <span class="live-field-hint">Buzzer + red alert fires when rolling avg ≥ this value</span>
+                    </div>
+                    <div class="live-field-group">
+                        <label for="liveThresholdSlider" class="live-label">
+                            Viz Threshold &nbsp;
+                            <strong id="liveThresholdVal" style="color:var(--accent)">20</strong>
+                        </label>
+                        <input type="range" id="liveThresholdSlider" min="5" max="100" value="20" step="1">
+                        <span class="live-field-hint">Heatmap vs bounding boxes switch point</span>
+                    </div>
+                    <div class="live-field-group">
+                        <label for="liveSkipSlider" class="live-label">
+                            🎞️ Frame Skip &nbsp;
+                            <strong id="liveSkipVal" style="color:var(--accent)">2</strong>
+                        </label>
+                        <input type="range" id="liveSkipSlider" min="1" max="10" value="2" step="1">
+                        <span class="live-field-hint">Process every Nth frame (higher = faster live feed)</span>
+                    </div>
+                </div>
+
+                <div class="live-controls">
+                    <button class="btn btn-primary" id="startLiveBtn" onclick="startLive()">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                            <polygon points="5,3 19,12 5,21" />
+                        </svg>
+                        Start Live
+                    </button>
+                    <button class="btn btn-glass hidden" id="stopLiveBtn" onclick="stopLive()">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                            <rect x="6" y="6" width="12" height="12" rx="2" />
+                        </svg>
+                        Stop Live
+                    </button>
+                </div>
+                <p id="liveError" class="live-error hidden"></p>
             </div>
         </section>
 
         <!-- Processing Section (hidden initially) -->
         <section id="processing-section" class="section processing-section hidden">
+            <!-- Source label -->
+            <div id="sourceLabel" class="source-label"></div>
+
             <!-- Main count display -->
             <div class="hero-count glass-card">
                 <div class="hero-count-inner">
@@ -155,7 +261,7 @@
                         <div class="spinner-ring"></div>
                         <div class="spinner-dot"></div>
                     </div>
-                    <p>Analyzing video frames...</p>
+                    <p>Analyzing frames...</p>
                     <span class="overlay-hint" id="modelDesc">Running YOLO + CNN on each frame</span>
                 </div>
             </div>
@@ -183,8 +289,8 @@
             <div class="info-grid">
                 <div class="info-card glass-card">
                     <div class="info-step">1</div>
-                    <h3>Upload Video</h3>
-                    <p>Drag & drop or browse for crowd footage in any common video format.</p>
+                    <h3>Upload or Go Live</h3>
+                    <p>Drag &amp; drop a video <em>or</em> connect your phone via DroidCam for live detection.</p>
                 </div>
                 <div class="info-card glass-card">
                     <div class="info-step">2</div>
@@ -194,16 +300,16 @@
                 </div>
                 <div class="info-card glass-card">
                     <div class="info-step">3</div>
-                    <h3>Smooth Results</h3>
-                    <p>A <strong>weighted rolling average</strong> across 10 frames delivers stable, accurate crowd
-                        counts.</p>
+                    <h3>Instant Alerts</h3>
+                    <p>A <strong>buzzer sound</strong> and flashing <strong>red banner</strong> fire the moment the
+                        crowd limit is breached.</p>
                 </div>
             </div>
         </section>
 
         <!-- Footer -->
         <footer class="footer">
-            <p>CrowdSense &mdash; Built with YOLOv8 & CSRNet</p>
+            <p>CrowdSense &mdash; Built with YOLOv8 &amp; CSRNet &bull; DroidCam live support</p>
         </footer>
     </div>
 

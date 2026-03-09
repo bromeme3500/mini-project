@@ -4,6 +4,7 @@ Uses ultralytics YOLOv8n for detecting individual people in frames.
 """
 
 from ultralytics import YOLO
+import torch
 import cv2
 import numpy as np
 
@@ -20,6 +21,9 @@ class YOLODetector:
             confidence: Minimum confidence threshold for detections
         """
         self.model = YOLO(model_path)
+        if torch.cuda.is_available():
+            self.model.to('cuda')
+            
         self.confidence = confidence
         self.PERSON_CLASS_ID = 0  # COCO class ID for 'person'
 

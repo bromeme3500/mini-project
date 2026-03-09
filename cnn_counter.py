@@ -274,14 +274,20 @@ class CNNCounter:
         self.model = self.model.to(self.device)
         self.model.eval()
 
-        # Auto-select: use multi-scale only on GPU, single-scale on CPU for speed
-        self.use_multiscale = self.device.type == "cuda"
+        if self.device.type == "cuda":
+            # Massive speedup for real-time execution by using half precision
+            self.model = self.model.half()
+
+        # Force single-scale inference even on GPU for real-time video speed
+        self.use_multiscale = False
+        
         if self.device.type == "cpu":
             print("[CNNCounter] CPU detected — using single-scale inference for speed")
             # Also reduce resolution further on CPU for real-time performance
             self.MAX_INPUT_WIDTH = 768
         else:
-            print("[CNNCounter] GPU detected — using multi-scale inference for accuracy")
+            print("[CNNCounter] GPU detected — using FP16 single-scale inference for real-time speed")
+
 
         # Image preprocessing (same as original CSRNet training)
         self.transform = transforms.Compose([
@@ -321,6 +327,9 @@ class CNNCounter:
 
         pil_image = pil_image.resize((target_w, target_h))
         input_tensor = self.transform(pil_image).unsqueeze(0).to(self.device)
+        
+        if self.device.type == "cuda":
+            input_tensor = input_tensor.half()
 
         return input_tensor, (target_w, target_h)
 
