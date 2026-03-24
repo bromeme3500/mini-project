@@ -19,7 +19,7 @@ class CrowdAnalyzer:
 
     - YOLO: Fast individual detection, accurate for sparse crowds
     - CNN (CSRNet): Density estimation, accurate for dense crowds
-    - Final count = max(yolo, cnn) — best of both worlds
+    - Final count = YOLO if YOLO count <= 10 else CNN count
 
     Visualization:
     - If YOLO count wins → show bounding boxes (useful for sparse scenes)
@@ -73,18 +73,17 @@ class CrowdAnalyzer:
         else:
             cnn_count, cnn_frame = self.cnn.count(frame)
 
-        # Step 3: Take the max — this ensures dense crowds are never missed
-        frame_count = max(yolo_count, cnn_count)
-
-        # Step 4: Choose visualization
-        if cnn_count > yolo_count:
-            # CNN won — dense crowd, show heatmap
-            annotated_frame = cnn_frame
-            model_used = "CNN"
-        else:
-            # YOLO won or tied — sparse crowd, show bounding boxes
+        # Step 3 & 4: Choose model and visualization based on count threshold
+        if yolo_count <= 10:
+            # Sparse crowd, trust YOLO and show bounding boxes
+            frame_count = yolo_count
             annotated_frame = yolo_frame
             model_used = "YOLO"
+        else:
+            # Dense crowd, switch to CNN and show heatmap
+            frame_count = cnn_count
+            annotated_frame = cnn_frame
+            model_used = "CNN"
 
         # Step 5: Update rolling average
         self.count_history.append(frame_count)
@@ -181,7 +180,7 @@ class CrowdAnalyzer:
         # Line 4: Method explanation
         cv2.putText(
             frame,
-            "Using max(YOLO, CNN) for accuracy",
+            "YOLO if count <= 10 else CNN",
             (10, 120),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,

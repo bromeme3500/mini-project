@@ -12,8 +12,10 @@
     const videoInput = document.getElementById("videoInput");
     const thresholdSlider = document.getElementById("thresholdSlider");
     const thresholdValue = document.getElementById("thresholdValue");
-    const skipSlider = document.getElementById("skipSlider");
-    const skipValue = document.getElementById("skipValue");
+    const uploadAlertLimitSlider = document.getElementById('uploadAlertLimitSlider');
+    const uploadAlertLimitVal = document.getElementById('uploadAlertLimitVal');
+    const uploadIntervalSlider = document.getElementById("uploadIntervalSlider");
+    const uploadIntervalVal = document.getElementById("uploadIntervalVal");
 
     const uploadSection = document.getElementById("upload-section");
     const liveSection = document.getElementById("live-section");
@@ -78,11 +80,6 @@
     // ============================================================
     // SLIDER UPDATES
     // ============================================================
-    const liveSkipSlider = document.getElementById('liveSkipSlider');
-    const liveSkipVal = document.getElementById('liveSkipVal');
-    const uploadAlertLimitSlider = document.getElementById('uploadAlertLimitSlider');
-    const uploadAlertLimitVal = document.getElementById('uploadAlertLimitVal');
-
     // Live Config Sliders
     liveThresholdSlider.addEventListener('input', (e) => {
         liveThresholdVal.textContent = e.target.value;
@@ -90,19 +87,21 @@
     alertLimitSlider.addEventListener('input', (e) => {
         alertLimitVal.textContent = e.target.value;
     });
-    liveSkipSlider.addEventListener('input', (e) => {
-        liveSkipVal.textContent = e.target.value;
+    const liveIntervalSlider = document.getElementById("liveIntervalSlider");
+    const liveIntervalVal = document.getElementById("liveIntervalVal");
+    liveIntervalSlider.addEventListener('input', (e) => {
+        liveIntervalVal.textContent = e.target.value;
     });
 
     // Upload Config Sliders
     thresholdSlider.addEventListener("input", () => {
         thresholdValue.textContent = thresholdSlider.value;
     });
-    skipSlider.addEventListener('input', (e) => {
-        skipValue.textContent = e.target.value;
-    });
     uploadAlertLimitSlider.addEventListener('input', (e) => {
         uploadAlertLimitVal.textContent = e.target.value;
+    });
+    uploadIntervalSlider.addEventListener('input', (e) => {
+        uploadIntervalVal.textContent = e.target.value;
     });
     // ============================================================
     // DRAG & DROP (upload tab)
@@ -211,7 +210,6 @@
         const formData = new FormData();
         formData.append("video", file);
         formData.append("threshold", thresholdSlider.value);
-        formData.append("frame_skip", skipSlider.value);
         formData.append("alert_limit", uploadAlertLimitSlider.value);
 
         isLiveMode = false;
@@ -238,8 +236,9 @@
 
     function startVideoProcessing(videoId, totalFrames) {
         const threshold = thresholdSlider.value;
-        const skip = skipSlider.value;
-        const url = `/process/${videoId}?threshold=${threshold}&skip=${skip}`;
+        const alertLimit = uploadAlertLimitSlider.value;
+        const interval = uploadIntervalSlider.value;
+        const url = `/process/${videoId}?threshold=${threshold}&alert_limit=${alertLimit}&interval=${interval}`;
 
         eventSource = new EventSource(url);
         let firstFrame = true;
@@ -298,7 +297,8 @@
         // Tell backend to start
         const liveThreshold = document.getElementById("liveThresholdSlider").value;
         const liveAlertLimit = document.getElementById("alertLimitSlider").value;
-        const liveSkip = document.getElementById("liveSkipSlider").value;
+        const liveInterval = document.getElementById("liveIntervalSlider").value;
+        // Configurable FPS enforced in backend
 
         try {
             const res = await fetch("/start_live", {
@@ -309,7 +309,7 @@
                     droidcam_ip: droidcamIp,
                     threshold: liveThreshold,
                     alert_limit: liveAlertLimit,
-                    frame_skip: liveSkip
+                    interval: liveInterval
                 }),
             });
             if (!res.ok) throw new Error("Server rejected /start_live");
@@ -332,7 +332,7 @@
         hideLiveError();
 
         // Connect to SSE
-        const sseUrl = `/live_stream?alert_limit=${alertLimit}`;
+        const sseUrl = `/live_stream?alert_limit=${alertLimit}&interval=${liveInterval}`;
         eventSource = new EventSource(sseUrl);
         let firstFrame = true;
 
@@ -361,13 +361,6 @@
 
             drawFrame(data.frame_base64);
             updateStats(data, true /* isLive */);
-
-            // Crowd limit alert
-            if (data.alert) {
-                showAlert(data.avg_count, data.alert_limit);
-            } else {
-                hideAlert();
-            }
         };
 
         eventSource.onerror = () => {
@@ -428,6 +421,12 @@
         modelBadge.classList.add(data.model_used === "YOLO" ? "yolo" : "cnn");
 
         if (modelDesc) modelDesc.textContent = `YOLO: ${data.yolo_count || 0} | CNN: ${data.cnn_count || 0}`;
+        // Universal crowd limit alert (Buzzer)
+        if (data.alert) {
+            showAlert(data.avg_count, data.alert_limit);
+        } else {
+            hideAlert();
+        }
 
         if (!isLive) {
             progressPercent.textContent = (data.progress || 0) + "%";

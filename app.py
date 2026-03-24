@@ -134,8 +134,8 @@ def process_video(video_id):
     Each event contains: base64-encoded annotated frame, counts, model info.
     """
     threshold = request.args.get("threshold", 20, type=int)
-    skip_frames = request.args.get("skip", 2, type=int)  # Process every Nth frame for speed
     alert_limit = request.args.get("alert_limit", 10, type=int)
+    interval = request.args.get("interval", 1.0, type=float)
 
     def generate():
         global models_ready
@@ -171,6 +171,10 @@ def process_video(video_id):
         crowd_analyzer = get_analyzer(threshold)
         crowd_analyzer.reset()
 
+        # Target configured interval based on video metadata
+        skip_frames = max(1, int(round(fps * interval)))
+        print(f"[Server] Video FPS: {fps}. Interval: {interval}s. Skip factor: {skip_frames}.")
+
         frame_number = 0
         processed = 0
 
@@ -185,9 +189,9 @@ def process_video(video_id):
             if frame_number % skip_frames != 0:
                 continue
 
-            # Resize large frames for faster processing
+            # Resize for FASTER streaming (720px width is perfect for web)
             h, w = frame.shape[:2]
-            max_dim = 1280
+            max_dim = 720
             if max(h, w) > max_dim:
                 scale = max_dim / max(h, w)
                 frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
@@ -251,7 +255,7 @@ def start_live():
         live_params["droidcam_ip"] = data.get("droidcam_ip", "").strip()
         live_params["threshold"] = int(data.get("threshold", 20))
         live_params["alert_limit"] = int(data.get("alert_limit", 10))
-        live_params["frame_skip"] = int(data.get("frame_skip", 2))
+        live_params["interval"] = float(data.get("interval", 1.0))
         live_active = True
     return jsonify({"status": "started"})
 
@@ -267,11 +271,9 @@ def stop_live():
 
 @app.route("/live_stream")
 def live_stream():
-    """
-    SSE endpoint — opens DroidCam (USB device index or Wi-Fi MJPEG URL)
-    and streams annotated frames with crowd counts and alert flag.
-    """
+    """Retrieve and stream live DroidCam frames as Base64 SSE."""
     alert_limit = request.args.get("alert_limit", 10, type=int)
+    interval = request.args.get("interval", 1.0, type=float)
 
     def generate():
         global live_active
@@ -293,11 +295,16 @@ def live_stream():
             params = dict(live_params)
 
         if params["droidcam_ip"]:
-            cam_source = f"http://{params['droidcam_ip']}:4747/mjpegfeed"
+            # Some DroidCam versions prefer /video, others /mjpegfeed. /video is more common.
+            cam_source = f"http://{params['droidcam_ip']}:4747/video"
         else:
             cam_source = params["device_index"]
 
-        cap = cv2.VideoCapture(cam_source)
+        # On Windows, CAP_DSHOW is often more reliable for local webcams
+        if isinstance(cam_source, int):
+            cap = cv2.VideoCapture(cam_source + cv2.CAP_DSHOW)
+        else:
+            cap = cv2.VideoCapture(cam_source)
         if not cap.isOpened():
             src_str = cam_source if isinstance(cam_source, str) else f"device {cam_source}"
             yield f"data: {json.dumps({'error': f'Cannot open camera: {src_str}. Make sure DroidCam desktop client is running.'})}\n\n"
@@ -306,6 +313,7 @@ def live_stream():
         crowd_analyzer = get_analyzer(params["threshold"])
         crowd_analyzer.reset()
         frame_number = 0
+        last_proc_time = 0  # Time tracker for 1 FPS optimization
 
         try:
             while True:
@@ -314,7 +322,6 @@ def live_stream():
                         break
                     current_threshold = int(live_params.get("threshold", 20))
                     current_alert_limit = int(live_params.get("alert_limit", 10))
-                    current_skip = int(live_params.get("frame_skip", 2))
 
                 ret, frame = cap.read()
                 if not ret:
@@ -323,12 +330,17 @@ def live_stream():
                     continue
 
                 frame_number += 1
-                if frame_number % current_skip != 0:
+                
+                # Check for configured interval
+                current_time = time.time()
+                if current_time - last_proc_time < interval:
                     continue
+                
+                last_proc_time = current_time
 
-                # Resize large frames
+                # Resize for FASTER streaming
                 h, w = frame.shape[:2]
-                max_dim = 1280
+                max_dim = 720
                 if max(h, w) > max_dim:
                     scale = max_dim / max(h, w)
                     frame = cv2.resize(frame, (int(w * scale), int(h * scale)))

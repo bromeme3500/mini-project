@@ -204,9 +204,8 @@ class CNNCounter:
     """
 
     # Maximum resolution for CNN input
-    # 1024 is a good balance of accuracy vs speed on CPU
-    # On GPU you could increase to 1920 for more detail
-    MAX_INPUT_WIDTH = 1024
+    # 640 is plenty for density estimation and significantly faster
+    MAX_INPUT_WIDTH = 640
 
     # Multi-scale inference settings (2 scales for speed)
     DEFAULT_SCALES = [0.9, 1.1]
@@ -300,19 +299,8 @@ class CNNCounter:
 
     def _prepare_input(self, frame, scale=1.0):
         """
-        Prepare a frame for model input at the given scale.
-
-        Args:
-            frame: BGR image (numpy array)
-            scale: Scale factor for multi-scale inference
-
-        Returns:
-            input_tensor: Tensor ready for model input
-            target_size: (target_w, target_h) used
+        Prepare a frame for model input at the given scale - OPTIMIZED version.
         """
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(rgb_frame)
-
         original_h, original_w = frame.shape[:2]
         target_w = min(original_w, self.MAX_INPUT_WIDTH)
         target_h = int(original_h * (target_w / original_w))
@@ -325,8 +313,22 @@ class CNNCounter:
         target_w = max((target_w // 8) * 8, 8)
         target_h = max((target_h // 8) * 8, 8)
 
-        pil_image = pil_image.resize((target_w, target_h))
-        input_tensor = self.transform(pil_image).unsqueeze(0).to(self.device)
+        # FAST PREPROCESSING: Use OpenCV instead of PIL
+        resized = cv2.resize(frame, (target_w, target_h))
+        rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+        
+        # Convert to float and normalize (0-1)
+        img_data = rgb.astype(np.float32) / 255.0
+        
+        # Mean/Std normalization (matching ImageNet stats manually for SPEED)
+        img_data -= np.array([0.485, 0.456, 0.406])
+        img_data /= np.array([0.229, 0.224, 0.225])
+        
+        # HWC to CHW
+        img_data = img_data.transpose(2, 0, 1)
+        
+        # Create tensor directly
+        input_tensor = torch.from_numpy(img_data).unsqueeze(0).to(self.device)
         
         if self.device.type == "cuda":
             input_tensor = input_tensor.half()

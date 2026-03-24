@@ -114,13 +114,14 @@
                 <div class="setting-item glass-card">
                     <div class="setting-header">
                         <div class="setting-icon">🎞️</div>
-                        <label for="skipSlider">
-                            <span class="setting-label">Frame Skip</span>
-                            <span class="setting-value" id="skipValue">2</span>
+                        <label for="uploadIntervalSlider">
+                            <span class="setting-label">Processing Interval</span>
+                            <span class="setting-value" id="uploadIntervalVal" style="color:var(--accent)">1</span>
+                            <span class="setting-unit">sec / frame</span>
                         </label>
                     </div>
-                    <input type="range" id="skipSlider" min="1" max="10" value="2" step="1">
-                    <p class="setting-desc">Process every Nth frame (higher = faster, less smooth)</p>
+                    <input type="range" id="uploadIntervalSlider" min="1" max="10" value="1" step="1">
+                    <p class="setting-desc">Process one frame every N seconds.</p>
                 </div>
                 <div class="setting-item glass-card" style="grid-column: 1 / -1;">
                     <div class="setting-header">
@@ -175,12 +176,12 @@
                         <span class="live-field-hint">Heatmap vs bounding boxes switch point</span>
                     </div>
                     <div class="live-field-group">
-                        <label for="liveSkipSlider" class="live-label">
-                            🎞️ Frame Skip &nbsp;
-                            <strong id="liveSkipVal" style="color:var(--accent)">2</strong>
+                        <label for="liveIntervalSlider" class="live-label">
+                            🎞️ Processing Interval &nbsp;
+                            <strong id="liveIntervalVal" style="color:var(--accent)">1</strong> sec / frame
                         </label>
-                        <input type="range" id="liveSkipSlider" min="1" max="10" value="2" step="1">
-                        <span class="live-field-hint">Process every Nth frame (higher = faster live feed)</span>
+                        <input type="range" id="liveIntervalSlider" min="1" max="10" value="1" step="1">
+                        <span class="live-field-hint">Optimized for stable counting and low latency.</span>
                     </div>
                 </div>
 
