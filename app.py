@@ -18,7 +18,7 @@ from flask import Flask, render_template, request, jsonify, Response, send_file
 from crowd_analyzer import CrowdAnalyzer
 
 # Telegram Alert Configuration
-TELEGRAM_BOT_TOKEN = "8618604506:AAHCsIw-y6z5f4PH_gwPRbj2B1tPuVWiJE8"  # Setup complete
+TELEGRAM_BOT_TOKEN = ""  # Setup complete
 TELEGRAM_CHAT_ID = "1446246146"       # Fixed: Removed the negative sign
 LAST_ALERT_TIME = 0.0
 ALERT_COOLDOWN = 30.0  # Seconds between alerts
